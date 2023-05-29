@@ -25,6 +25,9 @@ In the case of problems, try to first run: ```pip install --upgrade pip setuptoo
 The Python based headless renderer with egl backend is implemented using [Vispy](https://github.com/vispy/vispy).
 Vispy is installed using the pip command above.
 Note that the [nvidia opengl driver](https://developer.nvidia.com/opengl-driver) might be required in case of any errors.
+```
+sudo apt-get install -y libglew-dev
+```
 
 ### Python Renderer (deprecated)
 
