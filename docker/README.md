@@ -4,10 +4,10 @@ This folder contains the Docker setup for the BOP Toolkit.
 
 
 ## Download the Docker Image
+
 ```sh
-
+docker pull lyltc1/bop_toolkit:latest
 ```
-
 
 ## (or) Build the Docker Image by Yourself
 To build the Docker image, you can use one of the following commands:
@@ -41,7 +41,7 @@ docker run -it \
   -v ${FOLDER_CONTAINS_BOP}:/home/data:ro \
   -v ${OUTPUT_DIR}:/home/output:rw \
   -v ${CSV_FOLDER}:/home/input:rw \
-  bop_toolkit /bin/bash
+  lyltc1/bop_toolkit:latest /bin/bash
 ```
 
 Make sure to replace the paths with your actual paths.
@@ -49,6 +49,7 @@ Make sure to replace the paths with your actual paths.
 ### Inside the docker
 
 ```sh
+git pull  # get the updated code
 export RESULT_FILENAMES=result_ycbv-test.csv
-python scripts/eval_bop19_pose.py --result_filenames ${RESULT_FILENAMES} --use gpu
+python scripts/eval_bop19_pose.py --result_filenames ${RESULT_FILENAMES} --use_gpu
 ```
