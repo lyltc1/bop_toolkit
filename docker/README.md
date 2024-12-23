@@ -2,18 +2,24 @@
 
 This folder contains the Docker setup for the BOP Toolkit.
 
-## Build the Docker Image
 
+## Download the Docker Image
+```sh
+
+```
+
+
+## (or) Build the Docker Image by Yourself
 To build the Docker image, you can use one of the following commands:
 
 ```sh
-docker build -t bop_toolkit .
+docker build -t lyltc1/bop_toolkit:latest .
 ```
 
 or
 
 ```sh
-docker build --no-cache -t bop_toolkit .
+docker build --no-cache -t lyltc1/bop_toolkit:latest .
 ```
 
 ## Run the Docker Container
