@@ -1,8 +1,13 @@
-ARG PYTORCH="1.13.1"
-ARG CUDA="11.6"
-ARG CUDNN="8"
+FROM continuumio/miniconda3:24.11.1-0
 
-FROM pytorch/pytorch:${PYTORCH}-cuda${CUDA}-cudnn${CUDNN}-runtime
-RUN apt-get update
-RUN apt-get install -y git
+RUN apt-get update && apt-get install build-essential -y
+
+WORKDIR /home
 RUN git clone https://github.com/lyltc1/bop_toolkit
+RUN pip install -r /home/bop_toolkit/requirements.txt -e .
+
+# RUN python3 --version
+
+
+# build command: docker build -t bop_toolkit .
+# run command: docker run -it bop_toolkit /bin/bash
