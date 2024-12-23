@@ -4,8 +4,10 @@ RUN apt-get update && apt-get install build-essential -y
 
 WORKDIR /home
 RUN git clone https://github.com/lyltc1/bop_toolkit
-RUN pip install -r /home/bop_toolkit/requirements.txt -e .
-
+WORKDIR /home/bop_toolkit
+RUN pip install numpy==1.26.0
+RUN pip install -r requirements.txt -e .
+RUN pip install git+https://github.com/MartinSmeyer/cocoapi.git@v1.0#subdirectory=PythonAPI
 # RUN python3 --version
 
 
