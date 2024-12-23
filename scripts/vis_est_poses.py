@@ -4,6 +4,7 @@
 """Visualizes object models in pose estimates saved in the BOP format."""
 
 import os
+import argparse
 import numpy as np
 import itertools
 
@@ -57,6 +58,16 @@ p = {
 }
 ################################################################################
 
+# Command line arguments.
+# ------------------------------------------------------------------------------
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--result_filenames",
+    default=",".join(p["result_filenames"]),
+    help="Comma-separated names of files with results.",
+)
+args = parser.parse_args()
+p["result_filenames"] = args.result_filenames.split(",")
 
 # Load colors.
 colors_path = os.path.join(os.path.dirname(visualization.__file__), "colors.json")

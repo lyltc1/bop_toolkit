@@ -46,10 +46,16 @@ docker run -it \
 
 Make sure to replace the paths with your actual paths.
 
-### Inside the docker
+### bop19 eval
 
-```sh
+```sh 
+# (Inside the docker)
 git pull  # get the updated code
 export RESULT_FILENAMES=result_ycbv-test.csv
 python scripts/eval_bop19_pose.py --result_filenames ${RESULT_FILENAMES} --use_gpu
+```
+
+### visualize result
+``` sh
+# (Inside the docker)
 ```

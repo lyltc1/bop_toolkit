@@ -81,7 +81,9 @@ def write_text_on_image(im, txt_list, loc=(3, 0), color=(1.0, 1.0, 1.0), size=20
             txt_tpl = "{}{" + info["fmt"] + "}"
         txt = txt_tpl.format(info["name"], info["val"])
         draw.text(loc, txt, fill=tuple([int(c * 255) for c in color]), font=font)
-        text_width, text_height = font.getsize(txt)
+        left, top, right, bottom = font.getbbox(txt)
+        text_width = right - left
+        text_height = bottom - top
         loc = (loc[0], loc[1] + text_height)
     del draw
 

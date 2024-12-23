@@ -9,6 +9,7 @@ from typing import Hashable
 
 os.environ["PYOPENGL_PLATFORM"] = "egl"
 import numpy as np
+import trimesh
 import OpenGL.GL as gl
 import vispy
 from bop_toolkit_lib import inout, misc, renderer
@@ -300,6 +301,7 @@ class RendererVispy(renderer.Renderer, app.Canvas, metaclass=SingletonArgs):
 
         # Structures to store object models and related info.
         self.models = {}
+        self.meshes = {}
         self.model_bbox_corners = {}
         self.model_textures = {}
 
@@ -333,6 +335,8 @@ class RendererVispy(renderer.Renderer, app.Canvas, metaclass=SingletonArgs):
         # Load the object model.
         model = inout.load_ply(model_path)
         self.models[obj_id] = model
+        mesh = trimesh.load(model_path)
+        self.meshes[obj_id] = mesh
 
         # Calculate the 3D bounding box of the model (will be used to set the near
         # and far clipping plane).
@@ -423,7 +427,7 @@ class RendererVispy(renderer.Renderer, app.Canvas, metaclass=SingletonArgs):
                     ("a_texcoord", np.float32, 2),
                 ]
                 vertices = np.array(
-                    list(zip(model["pts"], model["normals"], colors, texture_uv)),
+                    list(zip(model["pts"], mesh.vertex_normals, colors, texture_uv)),
                     vertices_type,
                 )
             else:
@@ -462,6 +466,7 @@ class RendererVispy(renderer.Renderer, app.Canvas, metaclass=SingletonArgs):
     def remove_object(self, obj_id):
         """See base class."""
         del self.models[obj_id]
+        del self.meshes[obj_id]
         del self.model_bbox_corners[obj_id]
         if obj_id in self.model_textures:
             del self.model_textures[obj_id]
