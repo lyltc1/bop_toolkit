@@ -58,4 +58,6 @@ python scripts/eval_bop19_pose.py --result_filenames ${RESULT_FILENAMES} --use_g
 ### visualize result
 ``` sh
 # (Inside the docker)
+export RESULT_FILENAMES=result_ycbv-test.csv
+python scripts/vis_est_poses.py --result_filenames ${RESULT_FILENAMES} --vis_per_obj_id False --vis_origin_color True
 ```
