@@ -62,3 +62,19 @@ git pull  # get the updated code
 export RESULT_FILENAMES=result_ycbv-test.csv
 python scripts/vis_est_poses.py --result_filenames ${RESULT_FILENAMES} --vis_per_obj_id False --vis_origin_color True
 ```
+
+### visualize ground truth
+``` sh
+# (Inside the docker)
+git pull  # get the updated code
+# --vis_rect whether to visualize the 2D bounding box
+# --vis_rgb_background if False, black background will be used
+python scripts/vis_gt_poses.py --dataset ycbv --scene_ids 58 --im_ids 86 --vis_rgb_background False --vis_rect False 
+```
+
+### vis symmetry
+``` sh
+# (Inside the docker)
+git pull  # get the updated code
+python scripts/vis_object_symmetries.py --dataset ycbv
+```

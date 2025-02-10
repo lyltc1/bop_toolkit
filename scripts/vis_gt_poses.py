@@ -7,13 +7,13 @@ The script visualize datasets in the classical BOP19 format as well as the HOT3D
 """
 
 import os
+import argparse
 import numpy as np
 
 from bop_toolkit_lib import config
 from bop_toolkit_lib import dataset_params
 from bop_toolkit_lib import inout
 from bop_toolkit_lib import misc
-from bop_toolkit_lib import pose_error_htt
 from bop_toolkit_lib import renderer
 from bop_toolkit_lib import visualization
 
@@ -23,10 +23,17 @@ logger = misc.get_logger(file_name)
 
 htt_available = False
 try:
+    from bop_toolkit_lib import pose_error_htt
+except ImportError as e:
+    logger.warning("""Missing hand_tracking_toolkit dependency
+                mandatory if you are running evaluation on HOT3d.
+                Refer to the README.md for installation instructions.
+                """)
+try:
     from bop_toolkit_lib import renderer_htt
     htt_available = True
 except ImportError as e:
-    logger.warn("""Missing hand_tracking_toolkit dependency,
+    logger.warning("""Missing hand_tracking_toolkit dependency,
                 mandatory if you are running evaluation on HOT3d.
                 Refer to the README.md for installation instructions.
                 """)
@@ -56,6 +63,9 @@ p = {
     # ---------------------
     # Indicates whether to render RGB images.
     "vis_rgb": True,
+    "vis_rgb_background": False,
+    "vis_rect": True,
+    "vis_3d_bounding_box": True,
     # Indicates whether to resolve visibility in the rendered RGB images (using
     # depth renderings). If True, only the part of object surface, which is not
     # occluded by any other modeled object, is visible. If False, RGB renderings
@@ -86,6 +96,37 @@ p = {
     ),
 }
 ################################################################################
+def str2bool(v):
+    if isinstance(v, bool):
+        return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+# Command line arguments.
+# ------------------------------------------------------------------------------
+parser = argparse.ArgumentParser()
+parser.add_argument("--dataset", default=p["dataset"], help="Dataset name.")
+parser.add_argument("--model_type", default='default', help="choose from 'default' or 'eval', choose 'eval' to have no color")
+parser.add_argument('--vis_rgb_background', type=str2bool, nargs='?', const=True, default=False, help="Visualize RGB background")
+parser.add_argument('--vis_3d_bounding_box', type=str2bool, nargs='?', const=True, default=True, help="Visualize 3D bounding box")
+parser.add_argument('--vis_rect', type=str2bool, nargs='?', const=True, default=False, help="Visualize rectangle")
+parser.add_argument("--scene_ids", nargs="+", type=int, help="Scene ID's to be processed, separated by space.")
+parser.add_argument("--im_ids", nargs="+", type=int, help="Image ID's to be processed, separated by space.")
+parser.add_argument("--gt_ids", nargs="+", type=int, help="GT pose ID's to be processed, separated by space.")
+args = parser.parse_args()
+p["dataset"] = args.dataset
+if args.scene_ids is not None:
+    p["scene_ids"] = args.scene_ids
+if args.im_ids is not None:
+    p["im_ids"] = args.im_ids
+if args.gt_ids is not None:
+    p["gt_ids"] = args.gt_ids
+p["vis_rgb_background"] = args.vis_rgb_background
+p["vis_rect"] = args.vis_rect
+p["vis_3d_bounding_box"] = args.vis_3d_bounding_box
 
 if p["dataset"] == "hot3d" and not htt_available:
     raise ImportError("Missing hand_tracking_toolkit dependency, mandatory for HOT3D dataset.")
@@ -100,8 +141,10 @@ if p["dataset"] == "hot3d":
 dp_split = dataset_params.get_split_params(
     p["datasets_path"], p["dataset"], p["dataset_split"], p["dataset_split_type"]
 )
-
-model_type = "eval"  # None = default.
+if args.model_type == 'default':
+    model_type = None  # Default.
+elif args.model_type == 'eval':
+    model_type = "eval"  # None = default.
 dp_model = dataset_params.get_model_params(p["datasets_path"], p["dataset"], model_type)
 
 # Load colors.
@@ -145,9 +188,8 @@ if p["dataset"] == "hot3d":
 else:  # classical BOP format
     width, height = dp_split["im_size"]
     ren = renderer.create_renderer(
-        width, height, p["renderer_type"], mode=renderer_mode, shading="flat"
+        width, height, p["renderer_type"], mode=renderer_mode, shading="phong"
     )
-
 # Load object models.
 models = {}
 for obj_id in dp_model["obj_ids"]:
@@ -161,6 +203,32 @@ for obj_id in dp_model["obj_ids"]:
         aria_ren.add_object(obj_id, model_path, surf_color=model_color)
     else:
         ren.add_object(obj_id, model_path, surf_color=model_color)
+# Load model info
+def get_3d_bbox(min_x, min_y, min_z, size_x, size_y, size_z):
+    """
+    Input: 
+        scale: [3] or scalar
+        shift: [3] or scalar
+    Return 
+        bbox_3d: [3, N]
+
+    """
+    bbox_3d = np.array([[+size_x, +size_y, +size_z],
+                        [+size_x, +size_y, -size_z],
+                        [-size_x, +size_y, +size_z],
+                        [-size_x, +size_y, -size_z],
+                        [+size_x, -size_y, +size_z],
+                        [+size_x, -size_y, -size_z],
+                        [-size_x, -size_y, +size_z],
+                        [-size_x, -size_y, -size_z]]) + np.array([min_x, min_y, min_z])
+    bbox_3d = bbox_3d.transpose()
+    return bbox_3d
+
+models_bbox_3d = {}
+if p["vis_3d_bounding_box"]:
+    models_info_path = dp_model["models_info_path"]  # path_to/models_info.json
+    models_info = inout.load_json(models_info_path)
+    models_bbox_3d = {int(obj_id): get_3d_bbox(info['min_x'], info['min_y'], info['min_z'], info['size_x'], info['size_y'], info['size_z']) for obj_id, info in models_info.items()}
 
 scene_ids = dataset_params.get_present_scene_ids(dp_split)
 for scene_id in scene_ids:
@@ -240,11 +308,15 @@ for scene_id in scene_ids:
                     rgb = inout.load_im(
                         dp_split["rgb_tpath"].format(scene_id=scene_id, im_id=im_id)
                     )[:, :, :3]
+                    if p["vis_rgb_background"] is False:
+                        rgb = np.zeros_like(rgb)
                 elif "gray" in dp_split["im_modalities"]:
                     gray = inout.load_im(
                         dp_split["gray_tpath"].format(scene_id=scene_id, im_id=im_id)
                     )
                     rgb = np.dstack([gray, gray, gray])
+                    if p["vis_rgb_background"] is False:
+                        rgb = np.zeros_like(rgb)
                 else:
                     raise ValueError("RGB nor gray images are available.")
 
@@ -278,7 +350,7 @@ for scene_id in scene_ids:
                     scene_id=scene_id,
                     im_id=im_id,
                 )
-
+        
         # Visualization.
         visualization.vis_object_poses(
             poses=gt_poses,
@@ -289,6 +361,10 @@ for scene_id in scene_ids:
             vis_rgb_path=vis_rgb_path,
             vis_depth_diff_path=vis_depth_diff_path,
             vis_rgb_resolve_visib=p["vis_rgb_resolve_visib"],
+            vis_rgb_background=p["vis_rgb_background"],
+            vis_rect=p["vis_rect"],
+            vis_3d_bounding_box=p["vis_3d_bounding_box"],
+            models_bbox_3d=models_bbox_3d,
         )
 
 misc.log("Done.")

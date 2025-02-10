@@ -4,6 +4,7 @@
 """Visualizes object models under all identified symmetry transformations."""
 
 import os
+import argparse
 import numpy as np
 
 from bop_toolkit_lib import config
@@ -41,7 +42,12 @@ p = {
     ),
 }
 ################################################################################
-
+# Command line arguments.
+# ------------------------------------------------------------------------------
+parser = argparse.ArgumentParser()
+parser.add_argument("--dataset", default=p["dataset"], help="Dataset name.")
+args = parser.parse_args()
+p["dataset"] = args.dataset
 
 # Load dataset parameters.
 model_type = None  # None = default.

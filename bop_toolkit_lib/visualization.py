@@ -4,8 +4,6 @@
 """Visualization utilities."""
 
 import os
-
-# import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -21,7 +19,7 @@ try:
     from hand_tracking_toolkit.camera import CameraModel
     htt_available = True
 except ImportError as e:
-    logger.warn("""Missing hand_tracking_toolkit dependency,
+    logger.warning("""Missing hand_tracking_toolkit dependency,
                 mandatory if you are running evaluation on HOT3d.
                 Refer to the README.md for installation instructions.
                 """)
@@ -106,6 +104,50 @@ def depth_for_vis(depth, valid_start=0.2, valid_end=1.0):
     return depth_n
 
 
+def calculate_2d_projections(coordinates_3d, intrinsics):
+    """
+    Input: 
+        coordinates: [3, N]
+        intrinsics: [3, 3]
+    Return 
+        projected_coordinates: [N, 2]
+    """
+    projected_coordinates = intrinsics @ coordinates_3d
+    projected_coordinates = projected_coordinates[:2, :] / projected_coordinates[2, :]
+    projected_coordinates = projected_coordinates.transpose()
+    projected_coordinates = np.array(projected_coordinates, dtype=np.int32)
+
+    return projected_coordinates
+
+
+def draw_3d_bbox(img, imgpts, color, size=3):
+    imgpts = np.int32(imgpts).reshape(-1, 2)
+
+    # draw ground layer in darker color
+    color_ground = (int(color[0] * 0.3), int(color[1] * 0.3), int(color[2] * 0.3))
+    for i, j in zip([4, 5, 6, 7],[5, 7, 4, 6]):
+        img_pil = Image.fromarray(img)
+        draw = ImageDraw.Draw(img_pil)
+        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color_ground, width=size)
+        img = np.array(img_pil)
+
+    # draw pillars in blue color
+    color_pillar = (int(color[0]*0.6), int(color[1]*0.6), int(color[2]*0.6))
+    for i, j in zip(range(4),range(4,8)):
+        img_pil = Image.fromarray(img)
+        draw = ImageDraw.Draw(img_pil)
+        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color_pillar, width=size)
+        img = np.array(img_pil)
+
+    # finally, draw top layer in color
+    for i, j in zip([0, 1, 2, 3],[1, 3, 0, 2]):
+        img_pil = Image.fromarray(img)
+        draw = ImageDraw.Draw(img_pil)
+        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color, width=size)
+        img = np.array(img_pil)
+    return img
+
+
 def vis_object_poses(
     poses,
     K,
@@ -115,6 +157,10 @@ def vis_object_poses(
     vis_rgb_path=None,
     vis_depth_diff_path=None,
     vis_rgb_resolve_visib=False,
+    vis_rgb_background=True,
+    vis_rect=True,
+    vis_3d_bounding_box=False,
+    models_bbox_3d=None,
 ):
     """Visualizes 3D object models in specified poses in a single image.
 
@@ -206,39 +252,49 @@ def vis_object_poses(
                 ren_rgb_f[ren_rgb_f > 255] = 255
                 ren_rgb = ren_rgb_f.astype(np.uint8)
 
-            # Draw 2D bounding box and write text info.
-            obj_mask = np.sum(m_rgb > 0, axis=2)
-            ys, xs = obj_mask.nonzero()
-            if len(ys):
-                # bbox_color = model_color
-                # text_color = model_color
-                bbox_color = (0.3, 0.3, 0.3)
-                text_color = (1.0, 1.0, 1.0)
-                text_size = 11
+            if vis_rect:
+                # Draw 2D bounding box and write text info.
+                obj_mask = np.sum(m_rgb > 0, axis=2)
+                ys, xs = obj_mask.nonzero()
+                if len(ys):
+                    # bbox_color = model_color
+                    # text_color = model_color
+                    bbox_color = (0.3, 0.3, 0.3)
+                    text_color = (1.0, 1.0, 1.0)
+                    text_size = 11
 
-                bbox = misc.calc_2d_bbox(xs, ys, im_size)
-                im_size = (obj_mask.shape[1], obj_mask.shape[0])
-                ren_rgb_info = draw_rect(ren_rgb_info, bbox, bbox_color)
+                    bbox = misc.calc_2d_bbox(xs, ys, im_size)
+                    im_size = (obj_mask.shape[1], obj_mask.shape[0])
+                    ren_rgb_info = draw_rect(ren_rgb_info, bbox, bbox_color)
 
-                if "text_info" in pose:
-                    text_loc = (bbox[0] + 2, bbox[1])
-                    ren_rgb_info = write_text_on_image(
-                        ren_rgb_info,
-                        pose["text_info"],
-                        text_loc,
-                        color=text_color,
-                        size=text_size,
-                    )
+                    if "text_info" in pose:
+                        text_loc = (bbox[0] + 2, bbox[1])
+                        ren_rgb_info = write_text_on_image(
+                            ren_rgb_info,
+                            pose["text_info"],
+                            text_loc,
+                            color=text_color,
+                            size=text_size,
+                        )
+            # import pdb; pdb.set_trace()
+            if vis_3d_bounding_box:
+                # Draw 3D bounding box
+                model_bbox_3d = models_bbox_3d[pose["obj_id"]]  # [3, 8]
+                transformed_bbox_3d = pose["R"] @ model_bbox_3d + pose["t"]
+                projected_bbox = calculate_2d_projections(transformed_bbox_3d, K)
+                ren_rgb_info = draw_3d_bbox(ren_rgb_info, projected_bbox, color=(255, 0, 0))
 
     # Blend and save the RGB visualization.
     if vis_rgb:
         misc.ensure_dir(os.path.dirname(vis_rgb_path))
-
-        vis_im_rgb = (
-            0.5 * rgb.astype(np.float32)
-            + 0.5 * ren_rgb.astype(np.float32)
-            + 1.0 * ren_rgb_info.astype(np.float32)
-        )
+        if vis_rgb_background:
+            vis_im_rgb = (
+                0.5 * rgb.astype(np.float32)
+                + 0.5 * ren_rgb.astype(np.float32)
+                + 1.0 * ren_rgb_info.astype(np.float32)
+            )
+        else:
+            vis_im_rgb = ren_rgb.astype(np.float32) + 1.0 * ren_rgb_info.astype(np.float32)
         vis_im_rgb[vis_im_rgb > 255] = 255
         inout.save_im(vis_rgb_path, vis_im_rgb.astype(np.uint8), jpg_quality=95)
 
