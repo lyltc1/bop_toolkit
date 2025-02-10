@@ -9,6 +9,7 @@ The script visualize datasets in the classical BOP19 format as well as the HOT3D
 import os
 import argparse
 import numpy as np
+import trimesh
 
 from bop_toolkit_lib import config
 from bop_toolkit_lib import dataset_params
@@ -85,7 +86,7 @@ p = {
     "vis_path": os.path.join(config.output_path, "vis_gt_poses"),
     # Path templates for output images.
     "vis_rgb_tpath": os.path.join(
-        "{vis_path}", "{dataset}", "{split}", "{scene_id:06d}", "{im_id:06d}.jpg"
+        "{vis_path}", "{dataset}", "{split}", "{scene_id:06d}", "{im_id:06d}.png"
     ),
     "vis_depth_diff_tpath": os.path.join(
         "{vis_path}",
@@ -203,6 +204,7 @@ for obj_id in dp_model["obj_ids"]:
         aria_ren.add_object(obj_id, model_path, surf_color=model_color)
     else:
         ren.add_object(obj_id, model_path, surf_color=model_color)
+
 # Load model info
 def get_3d_bbox(min_x, min_y, min_z, size_x, size_y, size_z):
     """
@@ -214,21 +216,42 @@ def get_3d_bbox(min_x, min_y, min_z, size_x, size_y, size_z):
 
     """
     bbox_3d = np.array([[+size_x, +size_y, +size_z],
-                        [+size_x, +size_y, -size_z],
-                        [-size_x, +size_y, +size_z],
-                        [-size_x, +size_y, -size_z],
-                        [+size_x, -size_y, +size_z],
-                        [+size_x, -size_y, -size_z],
-                        [-size_x, -size_y, +size_z],
-                        [-size_x, -size_y, -size_z]]) + np.array([min_x, min_y, min_z])
+                        [+size_x, +size_y, -0.0],
+                        [-0.0, +size_y, +size_z],
+                        [-0.0, +size_y, -0.0],
+                        [+size_x, -0.0, +size_z],
+                        [+size_x, -0.0, -0.0],
+                        [-0.0, -0.0, +size_z],
+                        [-0.0, -0.0, -0.0]]) + np.array([min_x, min_y, min_z])
     bbox_3d = bbox_3d.transpose()
     return bbox_3d
 
 models_bbox_3d = {}
 if p["vis_3d_bounding_box"]:
-    models_info_path = dp_model["models_info_path"]  # path_to/models_info.json
-    models_info = inout.load_json(models_info_path)
-    models_bbox_3d = {int(obj_id): get_3d_bbox(info['min_x'], info['min_y'], info['min_z'], info['size_x'], info['size_y'], info['size_z']) for obj_id, info in models_info.items()}
+    for obj_id in dp_model["obj_ids"]:
+        misc.log("Loading 3D model bbox info of object {}...".format(obj_id))
+        model_path = dp_model["model_tpath"].format(obj_id=obj_id)
+        mesh = trimesh.load(model_path)
+        points = mesh.vertices
+        centered_points = points - np.mean(points, axis=0)
+        cov_matrix = np.cov(centered_points, rowvar=False)
+        eigenvalues, eigenvectors = np.linalg.eig(cov_matrix)
+        transformed_points = centered_points @ eigenvectors
+        obb_min = transformed_points.min(axis=0)
+        obb_max = transformed_points.max(axis=0)
+        # Get the eight corner points of the OBB
+        obb_points = np.array([
+            [obb_max[0], obb_max[1], obb_max[2]],
+            [obb_max[0], obb_max[1], obb_min[2]],
+            [obb_min[0], obb_max[1], obb_max[2]],
+            [obb_min[0], obb_max[1], obb_min[2]],
+            [obb_max[0], obb_min[1], obb_max[2]],
+            [obb_max[0], obb_min[1], obb_min[2]],
+            [obb_min[0], obb_min[1], obb_max[2]],
+            [obb_min[0], obb_min[1], obb_min[2]],
+        ])
+        obb_points = obb_points @ eigenvectors.T + np.mean(points, axis=0)
+        models_bbox_3d[obj_id] = obb_points.transpose()
 
 scene_ids = dataset_params.get_present_scene_ids(dp_split)
 for scene_id in scene_ids:

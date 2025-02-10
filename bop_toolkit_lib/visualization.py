@@ -120,26 +120,25 @@ def calculate_2d_projections(coordinates_3d, intrinsics):
     return projected_coordinates
 
 
-def draw_3d_bbox(img, imgpts, color, size=3):
+def draw_3d_bbox(img, imgpts, color, size=2):
     imgpts = np.int32(imgpts).reshape(-1, 2)
 
-    # draw ground layer in darker color
-    color_ground = (int(color[0] * 0.3), int(color[1] * 0.3), int(color[2] * 0.3))
+    # draw ground layer
     for i, j in zip([4, 5, 6, 7],[5, 7, 4, 6]):
         img_pil = Image.fromarray(img)
         draw = ImageDraw.Draw(img_pil)
-        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color_ground, width=size)
+        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color, width=size)
         img = np.array(img_pil)
 
-    # draw pillars in blue color
-    color_pillar = (int(color[0]*0.6), int(color[1]*0.6), int(color[2]*0.6))
+    # draw pillars
+    color_pillar = (int(color[0]), int(color[1]*1), int(color[2]*1))
     for i, j in zip(range(4),range(4,8)):
         img_pil = Image.fromarray(img)
         draw = ImageDraw.Draw(img_pil)
-        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color_pillar, width=size)
+        draw.line([tuple(imgpts[i]), tuple(imgpts[j])], fill=color, width=size)
         img = np.array(img_pil)
 
-    # finally, draw top layer in color
+    # finally, draw top layer
     for i, j in zip([0, 1, 2, 3],[1, 3, 0, 2]):
         img_pil = Image.fromarray(img)
         draw = ImageDraw.Draw(img_pil)
@@ -282,7 +281,7 @@ def vis_object_poses(
                 model_bbox_3d = models_bbox_3d[pose["obj_id"]]  # [3, 8]
                 transformed_bbox_3d = pose["R"] @ model_bbox_3d + pose["t"]
                 projected_bbox = calculate_2d_projections(transformed_bbox_3d, K)
-                ren_rgb_info = draw_3d_bbox(ren_rgb_info, projected_bbox, color=(255, 0, 0))
+                ren_rgb_info = draw_3d_bbox(ren_rgb_info, projected_bbox, color=(0, 255, 0))
 
     # Blend and save the RGB visualization.
     if vis_rgb:
